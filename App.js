@@ -1,20 +1,16 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import AppNavigator from "./src/utility/AppNavigator";
+import NetInfo from '@react-native-community/netinfo';
+import {syncCollectedData} from "./src/utility/storage";
 
-export default function App() {
-  return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+NetInfo.addEventListener((state) => {
+    if (state.isConnected) {
+        // Device is online, sync collected data
+        syncCollectedData();
+    }
 });
+const App = () => {
+    return <AppNavigator />;
+};
+
+export default App;
