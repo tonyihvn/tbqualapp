@@ -30,76 +30,52 @@ const RegisterScreen = () => {
   // const [selectedFacility, setSelectedFacility] = useState('');
   // const [selectedState, setSelectedState] = useState('');
 
-  useEffect(() => {
+  const loadStatesAndFacilities = async () => {
+    // await clearAsyncStorage();
+    try {
+      // Retrieve the stringified statesData from AsyncStorage
+      const statesDataString =  await getFromAsyncStorage('states');
 
-    // clearAsyncStorage();
-    //
-    checkAsyncStorageKeys();
+      // Parse the stringified data back into an array
+      const statesData = statesDataString ? JSON.parse(statesDataString) : [];
 
-    const loadStatesAndFacilities = async () => {
-      try {
-        // Retrieve the stringified statesData from AsyncStorage
-        const statesDataString = await getFromAsyncStorage('states');
-
-        // Parse the stringified data back into an array
-        const statesData = statesDataString ? JSON.parse(statesDataString) : [];
-
-        if (statesData && statesData.length > 0) {
-          console.log("Local States:", JSON.stringify(statesData));
-          setStates(statesData);
-        } else {
-          const response = await fetch(`${localServerAddress}/tbqual/api/states`);
-          const statesFromApi = await response.json();
-
-          setStates(statesFromApi);
-          console.log("Api States:" +statesFromApi);
-          await saveToAsyncStorage('states', statesFromApi);
-        }
-
-        const facilitiesDataString = await getFromAsyncStorage('facilities');
-
-        // Parse the stringified data back into an array
-        const facilitiesData = facilitiesDataString ? JSON.parse(facilitiesDataString) : [];
-
-        if (facilitiesData  && facilitiesData.length > 0) {
-          console.log("Local Facilities:", JSON.stringify(facilitiesData));
-          setFacilities(facilitiesData);
-        } else {
-
-          const response = await fetch(`${localServerAddress}/tbqual/api/facilities`);
-          const facilitiesFromApi = await response.json();
-          setFacilities(facilitiesFromApi);
-          console.log("Api Facilities:" +JSON.stringify(facilitiesFromApi));
-
-          await saveToAsyncStorage('facilities', facilitiesFromApi);
-        }
-      } catch (error) {
-        console.error('Error loading states and facilities:', error.message);
+      if (statesData && statesData.length > 0) {
+        console.log("Local States:", JSON.stringify(statesData));
+        setStates(statesData);
+      } else {
+        const response = await fetch(`${localServerAddress}/tbqual/api/states`);
+        const statesFromApi = await response.json();
+        setStates(statesFromApi);
+        console.log("Api States:" +statesFromApi);
+        await saveToAsyncStorage('states', statesFromApi);
       }
-    };
+
+      const facilitiesDataString = getFromAsyncStorage('facilities');
+      // Parse the stringified data back into an array
+      const facilitiesData = facilitiesDataString ? facilitiesDataString : [];
+
+      if (facilitiesData  && facilitiesData.length > 0) {
+        console.log("Local Facilities:", facilitiesData);
+        setFacilities(facilitiesData);
+      } else {
+        const response = await fetch(`${localServerAddress}/tbqual/api/facilities`);
+        const facilitiesFromApi = await response.json();
+        setFacilities(facilitiesFromApi);
+        console.log("Api Facilities:" +JSON.stringify(facilitiesFromApi));
+
+        await saveToAsyncStorage('facilities', JSON.stringify(facilitiesFromApi));
+      }
+
+    } catch (error) {
+      console.error('Error loading states and facilities:', error.message);
+    }
+  };
+  useEffect(() => {
+    // clearAsyncStorage();
+    checkAsyncStorageKeys();
 
     loadStatesAndFacilities();
   }, []); // Empty dependency array to run the effect only once
-
-
-  // const saveToAsyncStorage = async (key, newData) => {
-  //   try {
-  //
-  //     // console.log(`Key ${key} cleared successfully`);
-  //     // Load existing data from AsyncStorage
-  //     const existingDataString = await AsyncStorage.getItem(key);
-  //     let existingData = existingDataString ? JSON.parse(existingDataString) : [];
-  //
-  //     // Filter out duplicates and merge with existing data
-  //     const uniqueData = Array.from(new Set([...existingData, ...newData]));
-  //
-  //     // Save merged data back to AsyncStorage
-  //     await AsyncStorage.setItem(key, JSON.stringify(uniqueData));
-  //   } catch (error) {
-  //     console.error(`Error saving ${key} to AsyncStorage:`, error.message);
-  //   }
-  // };
-
 
   const handleRegister = async () => {
     try {

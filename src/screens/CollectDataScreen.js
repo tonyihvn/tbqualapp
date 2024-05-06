@@ -13,26 +13,28 @@ import {
 } from 'react-native';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 import DateTimePicker from '@react-native-community/datetimepicker'; // Import from the new package
-
+import 'react-native-get-random-values';
+import { v4 as uuidv4 } from 'uuid';
 import RNPickerSelect from 'react-native-picker-select';
-
+import NetInfo from "@react-native-community/netinfo";
 import {
     saveToAsyncStorage,
     getFromAsyncStorage,
     getCsrfToken,
-    localServerAddress,
-    onlineServerAddress,
-    clearAsyncStorage, checkAsyncStorageKeys
+    localServerAddress
 } from "../utility/storage";
-
 import axios from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { format } from 'date-fns'; // Import date-fns for date formatting
 
-const CollectDataScreen = () => {
+const CollectDataScreen = ({route}) => {
+
+    // Extract reportData from route params
+    const { reportData } = route.params;
 
     const [fields, setFields] = useState({
-        'id': '',
+        appid: '',
+        id: 0,
         title: '',
         facility: '',
         from: new Date(),
@@ -76,7 +78,7 @@ const CollectDataScreen = () => {
         ndstb19u: '',
         ddstb19: '',
         entered_by: '',
-        status: '',
+        status: 'Open',
     });
     const [showFromPicker, setShowFromPicker] = useState(false);
     const [showToPicker, setShowToPicker] = useState(false);
@@ -92,39 +94,19 @@ const CollectDataScreen = () => {
     };
     const [facilities, setFacilities] = useState([]);
     // const [states, setStates] = useState([]);
-    const [selectedFromDate, setSelectedFromDate] = useState(null);
-    const [selectedToDate, setSelectedToDate] = useState(null);
+    const [selectedFromDate, setSelectedFromDate] = useState(fields.from);
+    const [selectedToDate, setSelectedToDate] = useState(fields.to);
 
 
     const loadStatesAndFacilities = async () => {
         // await clearAsyncStorage()
         try {
-            // const statesData = getFromAsyncStorage('states');
-            // if (statesData && statesData.length > 0) {
-            //     // console.log("Local States:", JSON.stringify(statesData));
-            //     setStates(statesData);
-            // } else {
-            //     // If not available in AsyncStorage, fetch from API and save to AsyncStorage
-            //     //const response = await fetch('http://41.223.44.116:90/tbqual/api/states');
-            //
-            //     const response = await fetch(`${localServerAddress}/tbqual/api/states`);
-            //
-            //     const statesFromApi = await response.json();
-            //
-            //     setStates(statesFromApi);
-            //     // console.log("Api States:", statesFromApi);
-            //     await saveToAsyncStorage('states', JSON.stringify(statesFromApi));
-            // }
 
-            // Load facilities from AsyncStorage
-            // const facilitiesData = await AsyncStorage.getItem('facilities');
             const facilitiesData = getFromAsyncStorage('facilities');
             if (facilitiesData  && facilitiesData.length > 0) {
                 // console.log("Local Facilities:", JSON.stringify(facilitiesData));
                 setFacilities(facilitiesData);
             }  else {
-                // If not available in AsyncStorage, fetch from API and save to AsyncStorage
-                //const response = await fetch('http://41.223.44.116:90/tbqual/api/facilities');
 
                 const response = await fetch(`${localServerAddress}/tbqual/api/facilities`);
                 const facilitiesFromApi = await response.json();
@@ -139,90 +121,149 @@ const CollectDataScreen = () => {
     };
 
     useEffect(() => {
-
-
         loadStatesAndFacilities();
-    }, []); // Empty dependency array to run the effect only once
+        if (reportData) {
+            setFields(reportData);
+        }
+    }, [reportData]); // Empty dependency array to run the effect only once
+
+    const updateStatusToSynced = (item) => {
+        return { ...item, status: 'Synced' };
+    };
 
     const syncQueueKey = 'syncQueue';
 
 
-    const saveCollectedData = async () => {
+    const checkInternetConnection = async () => {
         try {
-            // ... Your form data
-            // Save the form data to AsyncStorage
-            const syncQueue = await AsyncStorage.getItem(syncQueueKey) || '[]';
-            const updatedQueue = JSON.parse(syncQueue);
-            updatedQueue.push(fields);
-            await AsyncStorage.setItem(syncQueueKey, JSON.stringify(updatedQueue));
-            Alert.alert("Your Data has been saved offline. " + JSON.stringify(fields));
-            // getFromAsyncStorage("syncQueue");
-
-
-            // Optionally, show a success message or update UI
+            const state = await NetInfo.fetch();
+            return state.isConnected;
         } catch (error) {
-            console.error('Save failed:', error);
-            Alert.alert("Error Saving Data: "+ error);
+            console.error('Error checking internet connection:', error);
+            return false; // Default to false if there is an error
         }
     };
+
     const submitCollectedData = async () => {
         try {
-            const locallyStoredData = await AsyncStorage.getItem(syncQueueKey);
+            // Check internet connection
+            const isConnected = await checkInternetConnection();
 
+            if (!isConnected) {
+                // Save the data locally to AsyncStorage
+                await saveDataLocally();
+                Alert.alert("Your data has been saved offline. Please sync when you have an internet connection.");
+                return;
+            }
+
+            // If internet connection is available, proceed with online data transfer
+            const locallyStoredData = await AsyncStorage.getItem(syncQueueKey);
             if (locallyStoredData) {
-                // Send each pending item in the sync queue to the server
                 const csrfToken = await getCsrfToken();
-                const syncQueue = JSON.parse(locallyStoredData);
+                let syncQueue = JSON.parse(locallyStoredData); // Make a copy of the syncQueue
+
                 const authToken = await AsyncStorage.getItem('authToken');
                 console.log(authToken);
+
                 for (const item of syncQueue) {
-                    const response = await axios.post(`${localServerAddress}/tbqual/api/newAPIAggReport`, {
-                        ...item,
-                    }, {
-                        headers: {
-                            'X-CSRF-TOKEN': csrfToken,
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${authToken}`,
-                        },
-                    });
+                    try {
+                        const response = await axios.post(`${localServerAddress}/tbqual/api/newAPIAggReport`, {
+                            ...item,
+                        }, {
+                            headers: {
+                                'X-CSRF-TOKEN': csrfToken,
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${authToken}`,
+                            },
+                        });
 
-                    // Remove the successfully synced item from the queue
-                    syncQueue.splice(syncQueue.indexOf(item), 1);
+                        // Extract the ID from the response
+                        const { id } = response.data;
+                        console.log("The ID is: " + id);
 
-                    Alert.alert("Successful: "+response.data.message)
+                        // Update the item with the received ID and set status to "Synced"
+                        const updatedItem = { ...item, id, status: 'Synced' };
 
+                        // Update the item in the syncQueue
+                        syncQueue = syncQueue.map(queueItem => queueItem.appid === updatedItem.appid ? updatedItem : queueItem);
+
+                        console.log("Successful: " + response.data.message);
+                    } catch (error) {
+                        console.error('Error syncing item:', error);
+                        Alert.alert("Error syncing item");
+                    }
                 }
 
-                // Update the sync queue in AsyncStorage
-                await AsyncStorage.setItem(syncQueueKey, JSON.stringify(syncQueue));
-
+                // Save the updated syncQueue to AsyncStorage
+                await AsyncStorage.setItem('syncQueue', JSON.stringify(syncQueue));
+                console.log(syncQueue);
+                Alert.alert("Successful: All items have been synced to the Server!");
             }
         } catch (error) {
             console.error('Sending to Server Failed failed:', error);
-            await AsyncStorage.setItem('collectedData', JSON.stringify(...fields));
-            Alert.alert("Error Saving directly to server. Your Aggregate Data has been saved successfully offline. " + error)
+            // Handle error
+            Alert.alert("Error sending data to the server. Please try again later.");
         }
     };
-    // const showDatePicker = async () => {
-    //     try {
-    //         const { action, year, month, day } = await DatePickerAndroid.open({
-    //             date: selectedDate,
-    //         });
-    //
-    //         if (action === DatePickerAndroid.dateSetAction) {
-    //             const newDate = new Date(year, month, day);
-    //             setSelectedDate(newDate);
-    //             // Handle the selected date as needed
-    //             console.log('Selected Date:', newDate);
-    //         } else {
-    //             // User canceled the date picker
-    //             console.log('Date picker canceled');
-    //         }
-    //     } catch (error) {
-    //         console.error('Error opening date picker:', error.message);
-    //     }
-    // };
-    // admin@nigeriaqualtb.com @@superadmin
+
+    const saveDataLocally = async () => {
+        try {
+            let updatedQueue = [];
+            const syncQueue = await AsyncStorage.getItem(syncQueueKey) || '[]';
+            const existingQueue = JSON.parse(syncQueue);
+
+            // If an id is provided, update the existing record
+            if (fields.appid && fields.appid !== "") {
+                updatedQueue = existingQueue.map(item => {
+                    if (item.appid === fields.appid) {
+                        return { ...item, ...fields };
+                    }
+                    return item;
+                });
+            } else {
+                // Generate a unique id for new records
+                const newRecord = { ...fields, appid: uuidv4() };
+                updatedQueue = [...existingQueue, newRecord];
+            }
+
+            // Save the updated queue to AsyncStorage
+            await AsyncStorage.setItem(syncQueueKey, JSON.stringify(updatedQueue));
+        } catch (error) {
+            console.error('Save failed:', error);
+            Alert.alert("Error Saving Data: " + error);
+        }
+    };
+
+    const saveCollectedData = async () => {
+        try {
+            let updatedQueue = [];
+            const syncQueue = await AsyncStorage.getItem(syncQueueKey) || '[]';
+            const existingQueue = JSON.parse(syncQueue);
+
+            // If an id is provided, update the existing record
+            if (fields.appid && fields.appid!=="") {
+                updatedQueue = existingQueue.map(item => {
+                    if (item.appid === fields.appid) {
+                        return { ...item, ...fields };
+                    }
+                    return item;
+                });
+            } else {
+                // Generate a unique id for new records
+                const newRecord = { ...fields, appid: uuidv4() };
+                updatedQueue = [...existingQueue, newRecord];
+            }
+
+            // Save the updated queue to AsyncStorage
+            await AsyncStorage.setItem(syncQueueKey, JSON.stringify(updatedQueue));
+
+            Alert.alert("Your Data has been saved offline.");
+        } catch (error) {
+            console.log('Save failed:', error);
+            Alert.alert("Error Saving Data: "+ error);
+        }
+    };
+
     return (
         <PaperProvider theme={DefaultTheme}>
             <KeyboardAvoidingView
@@ -233,8 +274,7 @@ const CollectDataScreen = () => {
                     <View style={styles.container}>
                         {/* Register Form */}
                         <View style={styles.formContainer}>
-
-                            <Text>Title</Text>
+                            <Text>Title - AppID: {fields.id}</Text>
                             <TextInput
                                 style={styles.GenericTextInput}
                                 placeholder="Enter Report Title"
@@ -256,13 +296,13 @@ const CollectDataScreen = () => {
                                 <TextInput
                                     style={styles.GenericTextInput}
                                     placeholder="Select From Date"
-                                    value={selectedFromDate ? selectedFromDate.toDateString() : ''}
+                                    value={fields.from ? new Date(fields.from).toDateString() : new Date().toDateString()}
                                     editable={false}
                                 />
                             </TouchableOpacity>
                             {showFromPicker && (
                                 <DateTimePicker
-                                    value={fields.from}
+                                    value={fields.from ? new Date(fields.from) : new Date()}
                                     mode="date"
                                     display="spinner"
                                     onChange={(event, date) => {
@@ -277,13 +317,13 @@ const CollectDataScreen = () => {
                                 <TextInput
                                     style={styles.GenericTextInput}
                                     placeholder="Select To Date"
-                                    value={selectedToDate ? selectedToDate.toDateString() : ''}
+                                    value={fields.to ? new Date(fields.to).toDateString() : new Date().toDateString()}
                                     editable={false}
                                 />
                             </TouchableOpacity>
                             {showToPicker && (
                                 <DateTimePicker
-                                    value={fields.to}
+                                    value={fields.to ? new Date(fields.to) : new Date()}
                                     mode="date"
                                     display="spinner"
                                     onChange={(event, date) => {
@@ -590,7 +630,6 @@ const CollectDataScreen = () => {
                                     placeholder="Enter Numerator" keyboardType="numeric"
                                     value={fields.ndstb19u}
                                     onChangeText={(text) => setFields({ ...fields, ndstb19u: text })} />
-
                                 <Text><Text style={styles.Question}>Denominator:</Text>Number of infection control strategies (i.e. IPC plan and policy, IPC guidelines, IPC focal person, IPC committee [minutes of meeting], IEC materials, evidence of use of IPC checklist to monitor implementation monthly).</Text>
                                 <TextInput
                                     style={styles.GenericTextInput}
@@ -598,7 +637,6 @@ const CollectDataScreen = () => {
                                     value={fields.ddstb19}
                                     onChangeText={(text) => setFields({ ...fields, ddstb19: text })} />
                             </View>
-
 
                             <View style={styles.buttonGroup}>
                                 <View style={styles.buttonContainer}>

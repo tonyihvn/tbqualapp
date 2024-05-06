@@ -1,12 +1,15 @@
 // DashboardScreen.js
-import React from 'react';
+import React, {useState} from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import {removeTokenFromAsyncStorage} from "../utility/storage"; // Use an appropriate icon library
 
+// admin@nigeriaqualtb.com @@superadmin
 const DashboardScreen = ({ navigation }) => {
-    const navigateToScreen = (screenName) => {
-        navigation.navigate(screenName);
+
+    const [reportData, setreportData] = useState([]);
+    const navigateToScreen = (screenName, params) => {
+        navigation.navigate(screenName, params);
     };
     const handleLogout = async () => {
         await removeTokenFromAsyncStorage();
@@ -27,26 +30,26 @@ const DashboardScreen = ({ navigation }) => {
                 </View>
             </View>
             <View style={styles.row}>
-                <TouchableOpacity style={[styles.box, { backgroundColor: '#3498db' }]} onPress={() => navigateToScreen('CollectData')}>
+                <TouchableOpacity style={[styles.box, { backgroundColor: '#3498db' }]} onPress={() => navigation.navigate('CollectData', { reportData })}>
                     <Icon name="edit" size={50} color="#fff" />
                     <Text style={styles.boxText}>Collect Data</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={[styles.box, { backgroundColor: '#2ecc71' }]} onPress={() => navigateToScreen('ViewData')}>
                     <Icon name="eye" size={50} color="#fff" />
-                    <Text style={styles.boxText}>View Data</Text>
+                    <Text style={styles.boxText}>Saved Reports</Text>
                 </TouchableOpacity>
             </View>
 
             <View style={styles.row}>
-                <TouchableOpacity style={[styles.box, { backgroundColor: '#e74c3c' }]} onPress={() => navigateToScreen('Facilities')}>
+                <TouchableOpacity style={[styles.box, { backgroundColor: '#e74c3c' }]} onPress={() => navigateToScreen('ViewIssues',{reportId: "All"})}>
                     <Icon name="building" size={50} color="#fff" />
-                    <Text style={styles.boxText}>Facilities</Text>
+                    <Text style={styles.boxText}>Report Issues</Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={[styles.box, { backgroundColor: '#f39c12' }]} onPress={() => navigateToScreen('Users')}>
-                    <Icon name="users" size={50} color="#fff" />
-                    <Text style={styles.boxText}>Users</Text>
+                <TouchableOpacity style={[styles.box, { backgroundColor: '#f39c12' }]} onPress={() => navigateToScreen('Facilities')}>
+                    <Icon name="home" size={50} color="#fff" />
+                    <Text style={styles.boxText}>My Facilities</Text>
                 </TouchableOpacity>
             </View>
 
@@ -58,6 +61,7 @@ const DashboardScreen = ({ navigation }) => {
         </View>
     );
 };
+
 
 const styles = StyleSheet.create({
     container: {

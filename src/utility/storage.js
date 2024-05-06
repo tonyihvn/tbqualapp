@@ -1,25 +1,21 @@
 // storage.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from "axios";
-export const localServerAddress = 'http://172.16.12.39:90';
-export const onlineServerAddress = 'http://41.223.44.116:90';
 
-// export const saveToAsyncStorage = async (key, value) => {
-//     try {
-//         await AsyncStorage.setItem(key, value);
-//     } catch (error) {
-//         console.error(`Error saving ${key} to AsyncStorage:`, error.message);
-//     }
-// };
+export const localServerAddress = 'http://172.16.12.39:90'; //localServerAddress
+// export const localServerAddress = 'http://41.223.44.116:90' // onlineServerAddress
+
+// export const localServerAddress = 'http://tb.qual' // onlineServerAddress
+
+
 export const saveToAsyncStorage = async (key, newData) => {
     try {
+        // await clearAsyncStorage()
         // Load existing data from AsyncStorage
         const existingDataString = await AsyncStorage.getItem(key);
         let existingData = existingDataString ? JSON.parse(existingDataString) : [];
-
         // Concatenate existing data with the new data
         const updatedData = [...existingData, ...newData];
-
         // Save the concatenated data back to AsyncStorage after stringifying it
         await AsyncStorage.setItem(key, JSON.stringify(updatedData));
     } catch (error) {
@@ -28,9 +24,8 @@ export const saveToAsyncStorage = async (key, newData) => {
 };
 export const getFromAsyncStorage = async (key) => {
     try {
-        const value = await AsyncStorage.getItem(key);
         // console.log(key+" : "+ value);
-        return value;
+        return await AsyncStorage.getItem(key);
     } catch (error) {
         console.error(`Error getting ${key} from AsyncStorage:`, error.message);
         return null;
