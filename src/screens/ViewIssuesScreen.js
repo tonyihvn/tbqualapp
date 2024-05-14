@@ -1,47 +1,90 @@
 import React, { useState, useEffect } from 'react';
 import {View, Text, FlatList, StyleSheet, TouchableOpacity, Button, Alert} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {localServerAddress} from "../utility/storage";
 
 const ViewIssuesScreen = ({ route, navigation }) => {
     const { reportId } = route.params;
     const [savedReports, setSavedReports] = useState([]);
     console.log("Report ID: "+reportId)
 
-    useEffect(() => {
-        const fetchSavedReports = async () => {
-            try {
-                const savedReportsJSON = await AsyncStorage.getItem('savedReportsIssues');
-                if (savedReportsJSON) {
-                    const savedReportsData = JSON.parse(savedReportsJSON);
+    const loadAdminComments = async () => {
+        // await clearAsyncStorage()
+        try {
 
-                    if (reportId === "All" || reportId==="") {
+            const response = await fetch(`${localServerAddress}/tbqual/api/admin-comments`);
+            const adminComments = await response.json();
 
-                        const syncedReportTitles = await Promise.all(savedReportsData.map(async report => {
-                            const syncQueueRecord = await AsyncStorage.getItem("syncQueue");
-                            const syncQueueData = JSON.parse(syncQueueRecord);
-                            const syncedRecord = syncQueueData.find(item => item.appid === report.reportId);
-                            return { ...report, title: syncedRecord ? syncedRecord.title : "Title Not Found" };
-                        }));
-                        setSavedReports(syncedReportTitles);
+            const { comments, appid, reportId} = adminComments;
 
-                        console.log("All Reports"+syncedReportTitles);
-                    } else {
-                        const filteredReports = savedReportsData.filter(report => report.reportId === reportId);
-                        const syncedReportTitles = await Promise.all(filteredReports.map(async report => {
-                            const syncQueueRecord = await AsyncStorage.getItem("syncQueue");
-                            const syncQueueData = JSON.parse(syncQueueRecord);
-                            const syncedRecord = syncQueueData.find(item => item.appid === report.reportId);
-                            return { ...report, title: syncedRecord ? syncedRecord.title : "Title Not Found" };
-                        }));
-                        setSavedReports(syncedReportTitles);
-                        console.log("Filtered Report"+syncedReportTitles);
-                    }
-                }
-            } catch (error) {
-                console.error('Error fetching saved reports:', error);
+            // Retrieve savedReportsIssues from AsyncStorage
+            let savedReportsIssues = await AsyncStorage.getItem('savedReportsIssues');
+            // Parse the JSON string to an array of objects
+            savedReportsIssues = JSON.parse(savedReportsIssues);
+
+            console.log(savedReportsIssues);
+
+            // Find the index of the record with the matching reportId
+            const indexToUpdate = savedReportsIssues.findIndex(issue => issue.appid === appid);
+
+            // Check if the record with the given reportId exists
+            if (indexToUpdate !== -1) {
+                // Update the record at the found index
+                savedReportsIssues[indexToUpdate] = {
+                    ...savedReportsIssues[indexToUpdate],
+                    comments: comments // Assuming comments is the fetched comments data
+                };
+
+                // Save the updated records back to AsyncStorage
+                await AsyncStorage.setItem('savedReportsIssues', JSON.stringify(savedReportsIssues));
+
+                console.log('Record updated successfully.'+ savedReportsIssues);
+            } else {
+                console.log('Record with reportId', reportId, 'not found.');
             }
-        };
 
+
+        } catch (error) {
+            console.error('Error loading Saved Reports:', error.message);
+        }
+    };
+
+    const fetchSavedReports = async () => {
+        try {
+            const savedReportsJSON = await AsyncStorage.getItem('savedReportsIssues');
+            if (savedReportsJSON) {
+                const savedReportsData = JSON.parse(savedReportsJSON);
+
+                if (reportId === "All" || reportId==="") {
+
+                    const syncedReportTitles = await Promise.all(savedReportsData.map(async report => {
+                        const syncQueueRecord = await AsyncStorage.getItem("syncQueue");
+                        const syncQueueData = JSON.parse(syncQueueRecord);
+                        const syncedRecord = syncQueueData.find(item => item.appid === report.reportId);
+                        return { ...report, title: syncedRecord ? syncedRecord.title : "Title Not Found" };
+                    }));
+                    setSavedReports(syncedReportTitles);
+
+                    console.log("All Reports"+syncedReportTitles);
+                } else {
+                    const filteredReports = savedReportsData.filter(report => report.reportId === reportId);
+                    const syncedReportTitles = await Promise.all(filteredReports.map(async report => {
+                        const syncQueueRecord = await AsyncStorage.getItem("syncQueue");
+                        const syncQueueData = JSON.parse(syncQueueRecord);
+                        const syncedRecord = syncQueueData.find(item => item.appid === report.reportId);
+                        return { ...report, title: syncedRecord ? syncedRecord.title : "Title Not Found" };
+                    }));
+                    setSavedReports(syncedReportTitles);
+                    console.log("Filtered Report"+syncedReportTitles);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching saved reports:', error);
+        }
+    };
+
+    useEffect(() => {
+        loadAdminComments();
         fetchSavedReports();
     }, [reportId]);
 
