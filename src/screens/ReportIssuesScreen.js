@@ -17,6 +17,8 @@ const appid = uuidv4();
 const ReportIssuesScreen = ({ route }) => {
     const { reportId } = route.params;
     const { reportTitle } = route.params;
+    const { appID } = route.params;
+
     const [indicatorNo, setIndicatorNo] = useState('');
     const [issues, setIssues] = useState('');
     const saveReportLocally = async () => {
@@ -59,6 +61,7 @@ const ReportIssuesScreen = ({ route }) => {
                         'Authorization': `Bearer ${authToken}`,
                     },
                 });
+                await saveReportLocally();
                 Alert.alert('Report submitted successfully.');
             } else {
                 // Save report locally if no internet connection
@@ -72,45 +75,47 @@ const ReportIssuesScreen = ({ route }) => {
     };
 
     const loadAdminComments = async () => {
-        // await clearAsyncStorage()
         try {
-
             const response = await fetch(`${localServerAddress}/tbqual/api/admin-comments`);
             const adminComments = await response.json();
 
-            const { comments, appid, reportId} = adminComments;
+            if (Array.isArray(adminComments) && adminComments.length > 0) {
+                // Retrieve savedReportsIssues from AsyncStorage
+                let savedReportsIssues = await AsyncStorage.getItem('savedReportsIssues');
+                // Parse the JSON string to an array of objects
+                savedReportsIssues = JSON.parse(savedReportsIssues);
 
-            // Retrieve savedReportsIssues from AsyncStorage
-            let savedReportsIssues = await AsyncStorage.getItem('savedReportsIssues');
-            // Parse the JSON string to an array of objects
-            savedReportsIssues = JSON.parse(savedReportsIssues);
+                // Iterate through each comment in adminComments
+                adminComments.forEach(async (adminComment) => {
+                    const { comments, appid } = adminComment;
 
-            console.log(savedReportsIssues);
+                    // Find the index of the record with the matching appid
+                    const indexToUpdate = savedReportsIssues.findIndex(issue => issue.appid === appid);
 
-            // Find the index of the record with the matching reportId
-            const indexToUpdate = savedReportsIssues.findIndex(issue => issue.appid === appid);
+                    // Check if the record with the given appid exists
+                    if (indexToUpdate !== -1) {
+                        // Update the record at the found index
+                        savedReportsIssues[indexToUpdate] = {
+                            ...savedReportsIssues[indexToUpdate],
+                            comments: comments // Assuming comments is the fetched comments data
+                        };
 
-            // Check if the record with the given reportId exists
-            if (indexToUpdate !== -1) {
-                // Update the record at the found index
-                savedReportsIssues[indexToUpdate] = {
-                    ...savedReportsIssues[indexToUpdate],
-                    comments: comments // Assuming comments is the fetched comments data
-                };
+                        // Save the updated records back to AsyncStorage
+                        await AsyncStorage.setItem('savedReportsIssues', JSON.stringify(savedReportsIssues));
 
-                // Save the updated records back to AsyncStorage
-                await AsyncStorage.setItem('savedReportsIssues', JSON.stringify(savedReportsIssues));
-
-                console.log('Record updated successfully.'+ savedReportsIssues);
+                        console.log('Record updated successfully.' + savedReportsIssues);
+                    } else {
+                        console.log('Record with appid', appid, 'not found.');
+                    }
+                });
             } else {
-                console.log('Record with reportId', reportId, 'not found.');
+                console.log('No admin comments found.');
             }
-
-
         } catch (error) {
-            console.error('Error loading Saved Reports:', error.message);
+            console.error('Error loading admin comments:', error.message);
         }
     };
+
     useEffect(() => {
         loadAdminComments();
 
@@ -120,6 +125,7 @@ const ReportIssuesScreen = ({ route }) => {
         <ScrollView>
             <View style={styles.container}>
                 <View style={styles.titleBox}>
+                    <Text>{reportId}</Text>
                     <Text>Report Title:</Text>
                     <Text style={styles.titleText}>{reportTitle}</Text>
                 </View>

@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {View, Text, FlatList, StyleSheet, TouchableOpacity, Button, Alert} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {localServerAddress} from "../utility/storage";
+import {localServerAddress, syncCollectedData} from "../utility/storage";
 
 const ViewIssuesScreen = ({ route, navigation }) => {
     const { reportId } = route.params;
     const [savedReports, setSavedReports] = useState([]);
+    const savedReportsIssues = 'savedReportsIssues';
+
     console.log("Report ID: "+reportId)
 
     const loadAdminComments = async () => {
         // await clearAsyncStorage()
         try {
-
             const response = await fetch(`${localServerAddress}/tbqual/api/admin-comments`);
             const adminComments = await response.json();
 
@@ -21,9 +22,7 @@ const ViewIssuesScreen = ({ route, navigation }) => {
             let savedReportsIssues = await AsyncStorage.getItem('savedReportsIssues');
             // Parse the JSON string to an array of objects
             savedReportsIssues = JSON.parse(savedReportsIssues);
-
             console.log(savedReportsIssues);
-
             // Find the index of the record with the matching reportId
             const indexToUpdate = savedReportsIssues.findIndex(issue => issue.appid === appid);
 
@@ -34,10 +33,8 @@ const ViewIssuesScreen = ({ route, navigation }) => {
                     ...savedReportsIssues[indexToUpdate],
                     comments: comments // Assuming comments is the fetched comments data
                 };
-
                 // Save the updated records back to AsyncStorage
                 await AsyncStorage.setItem('savedReportsIssues', JSON.stringify(savedReportsIssues));
-
                 console.log('Record updated successfully.'+ savedReportsIssues);
             } else {
                 console.log('Record with reportId', reportId, 'not found.');
@@ -100,8 +97,6 @@ const ViewIssuesScreen = ({ route, navigation }) => {
                             // onPress={() => navigation.navigate('CollectData', { reportData: item })}
                             style={[styles.reportItem]}
                         >
-
-
                             <View style={styles.row}>
                                 <View style={styles.detailContainer}>
                                     <Text>Report Title:</Text>
@@ -120,7 +115,17 @@ const ViewIssuesScreen = ({ route, navigation }) => {
                             <View style={styles.hr}></View>
                             <Text style={styles.reportTitleText}>Admin Comments: </Text>
                             <View style={styles.reportDetail}>
-                                <Text>The Admin will appear here.</Text>
+                                {item.comments === null || item.comments === undefined ? (
+                                    <Text>No comments available</Text>
+                                ) : item.comments === "" ? (
+                                    <Text>No comments available</Text>
+                                ) : (
+                                    item.comments.split('<li>').map((item, index) => {
+                                        if (index === 0) return null; // Skip the first item as it will be an empty string
+                                        const text = item.replace('</li>', '');
+                                        return <Text key={index}>• {text}</Text>; // Use a bullet point (•) for each list item
+                                    })
+                                )}
                             </View>
 
 
@@ -129,7 +134,7 @@ const ViewIssuesScreen = ({ route, navigation }) => {
 
                                 <View style={styles.buttonContainer}>
                                     { item.status!=="Synced" ?
-                                    <Button style={styles.buttonSuccess} title="Sync Data" onPress={() => navigation.navigate('ReportIssues', { reportId:item.appid, reportTitle:item.title })} />
+                                    <Button style={styles.buttonSuccess} title="Sync Data" onPress={() => syncCollectedData(savedReportsIssues, 'save-aggreport-issue')} />
                                     : <Text>Synced</Text>}
 
                                 </View>
@@ -143,7 +148,7 @@ const ViewIssuesScreen = ({ route, navigation }) => {
                     keyExtractor={(item, index) => index.toString()}
                 />
             ) : (
-                <Text>No saved reports found.</Text>
+                <Text style={styles.reportTitleText}>No saved reports found.</Text>
             )}
         </View>
     );

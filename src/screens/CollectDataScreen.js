@@ -16,11 +16,11 @@ import DateTimePicker from '@react-native-community/datetimepicker'; // Import f
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import RNPickerSelect from 'react-native-picker-select';
-import NetInfo from "@react-native-community/netinfo";
 import {
     saveToAsyncStorage,
     getFromAsyncStorage,
     getCsrfToken,
+    checkInternetConnection,
     localServerAddress
 } from "../utility/storage";
 import axios from "axios";
@@ -106,14 +106,15 @@ const CollectDataScreen = ({route}) => {
             if (facilitiesData  && facilitiesData.length > 0) {
                 // console.log("Local Facilities:", JSON.stringify(facilitiesData));
                 setFacilities(facilitiesData);
+                console.log("Local Facilities: "+facilitiesData);
             }  else {
 
                 const response = await fetch(`${localServerAddress}/tbqual/api/facilities`);
                 const facilitiesFromApi = await response.json();
                 setFacilities(facilitiesFromApi);
-                // console.log("Api Facilities:", facilitiesFromApi);
+                console.log("Api Facilities:", facilitiesFromApi);
 
-                await saveToAsyncStorage('facilities', JSON.stringify(facilitiesFromApi));
+                await saveToAsyncStorage('facilities', facilitiesFromApi);
             }
         } catch (error) {
             console.error('Error loading states and facilities:', error.message);
@@ -126,23 +127,7 @@ const CollectDataScreen = ({route}) => {
             setFields(reportData);
         }
     }, [reportData]); // Empty dependency array to run the effect only once
-
-    const updateStatusToSynced = (item) => {
-        return { ...item, status: 'Synced' };
-    };
-
     const syncQueueKey = 'syncQueue';
-
-
-    const checkInternetConnection = async () => {
-        try {
-            const state = await NetInfo.fetch();
-            return state.isConnected;
-        } catch (error) {
-            console.error('Error checking internet connection:', error);
-            return false; // Default to false if there is an error
-        }
-    };
 
     const submitCollectedData = async () => {
         try {

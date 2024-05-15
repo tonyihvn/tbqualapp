@@ -1,13 +1,23 @@
 // storage.js
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from "axios";
+import {Alert} from "react-native";
+import NetInfo from "@react-native-community/netinfo";
 
 export const localServerAddress = 'http://172.16.12.39:90'; //localServerAddress
 // export const localServerAddress = 'http://41.223.44.116:90' // onlineServerAddress
 
 // export const localServerAddress = 'http://tb.qual' // onlineServerAddress
 
-
+export const checkInternetConnection = async () => {
+    try {
+        const state = await NetInfo.fetch();
+        return state.isConnected;
+    } catch (error) {
+        console.error('Error checking internet connection:', error);
+        return false; // Default to false if there is an error
+    }
+};
 export const saveToAsyncStorage = async (key, newData) => {
     try {
         // await clearAsyncStorage()
@@ -70,29 +80,73 @@ export const checkAsyncStorageKeys = async () => {
     }
 };
 
-export const syncCollectedData = async () => {
+export const syncCollectedData = async (key,api_url) => {
     try {
-        const locallyStoredData = await AsyncStorage.getItem('collectedData');
+        // Check internet connection
+        const isConnected = await checkInternetConnection();
 
+        if (!isConnected) {
+            // Save the data locally to AsyncStorage
+            Alert.alert("Your data has been saved offline. Please sync when you have an internet connection.");
+            return;
+        }
+
+        // If internet connection is available, proceed with online data transfer
+        const locallyStoredData = await AsyncStorage.getItem(key);
         if (locallyStoredData) {
-            // Send the locally stored data to the server
             const csrfToken = await getCsrfToken();
-            const response = await axios.post(`${localServerAddress}/tbqual/api/syncmobiledata`, {
-                ...JSON.parse(locallyStoredData),
-            }, {
-                headers: {
-                    'X-CSRF-TOKEN': csrfToken,
-                    'Content-Type': 'application/json',
-                },
-            });
+            let localData = JSON.parse(locallyStoredData); // Make a copy of the syncQueue
 
-            // Remove the locally stored data upon successful sync
-            await AsyncStorage.removeItem('collectedData');
+            const authToken = await AsyncStorage.getItem('authToken');
+            console.log(authToken);
 
-            // Optionally, show a success message or update UI
+            for (const item of key) {
+                try {
+                    const response = await axios.post(`${localServerAddress}/tbqual/api/${api_url}`, {
+                        ...item,
+                    }, {
+                        headers: {
+                            'X-CSRF-TOKEN': csrfToken,
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${authToken}`,
+                        },
+                    });
+
+                    // Extract the ID from the response
+                    const { appid } = response.data;
+                    console.log("The App ID is: " + appid);
+
+                    // Update the item with the received ID and set status to "Synced"
+                    const updatedItem = { ...item, appid, status: 'Synced' };
+
+                    if(key==="syncQueue"){
+                        // Extract the ID from the response
+                        const { id } = response.data;
+                        console.log("The ID is: " + id);
+
+                        // Update the item with the received ID and set status to "Synced"
+                        const updatedItem = { ...item, id };
+                    }
+
+                    // Update the item in the syncQueue
+                    localData = localData.map(queueItem => queueItem.appid === updatedItem.appid ? updatedItem : queueItem);
+
+                    console.log("Successful: " + response.data.message);
+                } catch (error) {
+                    console.error('Error syncing item:', error);
+                    Alert.alert("Error syncing item");
+                }
+            }
+
+            // Save the updated syncQueue to AsyncStorage
+            await AsyncStorage.setItem(key, JSON.stringify(localData));
+            console.log(localData);
+            Alert.alert("Successful: All items have been synced to the Server!");
         }
     } catch (error) {
-        console.error('Sync failed:', error);
+        console.error('Sending to Server Failed failed:', error);
+        // Handle error
+        Alert.alert("Error sending data to the server. Please try again later.");
     }
 };
 

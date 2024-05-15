@@ -14,22 +14,25 @@ const FacilitiesScreen = () => {
 
     const loadFacilities = async () => {
         // await clearAsyncStorage();
+        // await AsyncStorage.removeItem('facilities');
 
         try {
             // Load facilities from AsyncStorage
             const facilitiesData = await AsyncStorage.getItem('facilities');
 
-            if (facilitiesData) {
+            if (facilitiesData  && facilitiesData.length > 0) {
                 setFacilities(JSON.parse(facilitiesData));
-                // console.log(facilitiesData);
+                alert("LOCAL FACILITIES: "+facilities);
+
             } else {
                 // If not available in AsyncStorage, fetch from API and save to AsyncStorage
                 const response = await fetch(`${localServerAddress}/tbqual/api/facilities`); // Replace with your API endpoint
 
                 const facilitiesFromApi = await response.json();
                 setFacilities(facilitiesFromApi);
+                alert("API FACI: "+ facilitiesData)
 
-                await AsyncStorage.setItem('facilities', JSON.stringify(facilitiesFromApi));
+                await AsyncStorage.setItem('facilities',facilitiesFromApi);
             }
         } catch (error) {
             console.error('Error loading facilities:', error.message);
@@ -38,14 +41,14 @@ const FacilitiesScreen = () => {
 
     const renderItem = ({ item }) => (
         <TouchableOpacity style={styles.facilityItem} onPress={() => handleFacilityPress(item)}>
-            <Text style={styles.facilityText}>{item.label}</Text>
+            <Text>{item.label}</Text>
             <Text style={styles.facilityStateText}>{item.state}</Text>
         </TouchableOpacity>
     );
 
     const handleFacilityPress = (facility) => {
         // Handle navigation or any other action when a facility is pressed
-        console.log('Facility pressed:', facility);
+        console.log('Facility pressed:', facility.label);
     };
 
     return (
@@ -55,6 +58,7 @@ const FacilitiesScreen = () => {
                 keyExtractor={(item) => item.id}
                 renderItem={renderItem}
             />
+
         </View>
     );
 };
